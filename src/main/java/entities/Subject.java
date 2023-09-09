@@ -6,16 +6,15 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class Timetable {
-    private int id;
-    private int professorId;
+public class Subject {
+    private String className = "A definir";
+    private int numbersOfLessons = 0;
+    private int period = 0;
+    private int prioritization = -1;
     private Shift shift;
     private Professor professor;
-    private List<ClassTime> classes;
 }

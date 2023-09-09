@@ -1,22 +1,37 @@
 package controllers;
 
+import entities.Subject;
 import entities.Timetable;
 import services.TimetableService;
+import services.TimetableServiceImpl;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class TimetableController {
 
-    private TimetableService timetableService;
-    public TimetableController(TimetableService timetableService){
+    private TimetableServiceImpl timetableService;
+    public TimetableController(TimetableServiceImpl timetableService){
         this.timetableService = timetableService;
     }
-    public Timetable readTimetableXLSX(String xlsxPath) {
+    public List<Timetable> readTimetableXLSX(String xlsxPath) {
         try {
-            timetableService.readPreferableTimetableFromExcel(xlsxPath);
+            return timetableService.readPreferableTimetableFromExcel(xlsxPath);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return null;
     }
+
+    public List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization) {
+        try {
+            List<Subject> subjectList =
+                    timetableService.readQDA(xlsxPath, periodPrioritization);
+            return subjectList;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
 }

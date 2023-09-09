@@ -1,7 +1,9 @@
 package services;
 
-import entities.Timetable;
+import java.io.IOException;
+import java.util.HashMap;
 
 public interface PrioritizationService {
     void applyPrioritization();
+    HashMap<Object, Object> readPeriodPrioritization(String xlsxPath) throws IOException;
 }
