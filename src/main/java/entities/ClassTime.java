@@ -17,4 +17,5 @@ public class ClassTime {
     private String time;
     private String dayOfTheWeek;
     private boolean preferable = false;
+    private int prioritization;
 }

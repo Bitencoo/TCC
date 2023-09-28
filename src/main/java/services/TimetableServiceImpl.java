@@ -5,21 +5,17 @@ import entities.Professor;
 import entities.Subject;
 import entities.Timetable;
 import enums.Shift;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class TimetableServiceImpl implements TimetableService {
     @Override
-    public List<Timetable> readPreferableTimetableFromExcel(String xlsxPath) throws IOException {
+    public List<Timetable> readPreferableTimetableFromExcel(String xlsxPath, HashMap<Object, String> professors) throws IOException {
         File myFile = new File("src/main/resources/disponibilidade_docentes_2_2023.xlsx");
         FileInputStream fis = new FileInputStream(myFile);
 
@@ -29,41 +25,41 @@ public class TimetableServiceImpl implements TimetableService {
         // Return first sheet from the XLSX workbook
         XSSFSheet mySheet = myWorkBook.getSheetAt(0);
 
-        // Get iterator to all the rows in current sheet
-        Iterator<Row> rowIterator = mySheet.iterator();
         int beginningRow = 2;
         String professor = "";
-        int professorIdIncrementor = 1;
         int timetableIdIncrementor = 1;
         int day = 0;
         Timetable currentTimetable = null;
-        Timetable timetable = null;
         String line = "";
 
         List<Timetable> timetableList = new ArrayList<>();
 
         for(int i = beginningRow; i < mySheet.getLastRowNum(); i++) {
             //Estou na linha Agora basta ler das colunas 4 até 11, 20 até 26 e depois 26 até 28
-            //Fazer dois laços de repetição
             Row row = mySheet.getRow(i);
             line = "";
 
             if (row != null) {
                 if (row.getCell(0) != null && row.getCell(0).getCellType() != CellType.BLANK && !row.getCell(0).getStringCellValue().equals("NOME")) {
-                    professor = row.getCell(0).getStringCellValue();
-                    System.out.println(professor);
-                    System.out.println("Hora   S T Q Q S S");
-                    currentTimetable = createEmptyProfessorPreferableTimetableMatutino(timetableIdIncrementor, professorIdIncrementor, professor, Shift.MATUTINO);
+                    professor = row.getCell(0).getStringCellValue().toUpperCase().trim().replace(" ", "");
+                    currentTimetable = null;
+                    if(professors.containsKey(professor)) {
+                        System.out.println(professor);
+                        System.out.println("Hora   S T Q Q S S");
+                        currentTimetable = createEmptyProfessorPreferableTimetableMatutino(timetableIdIncrementor, Integer.parseInt(professors.get(professor)), professor, Shift.MATUTINO);
 
-                    timetableIdIncrementor++;
-                    professorIdIncrementor++;
-                    day = -1;
-                    timetableList.add(currentTimetable);
+                        timetableIdIncrementor++;
+                        day = -1;
+                        timetableList.add(currentTimetable);
+                    }
+
                 }
-                currentTimetable = processTimetableShifts(currentTimetable, Shift.MATUTINO, row, day, line, false);
+                if(!Objects.isNull(currentTimetable)) {
+                    currentTimetable = processTimetableShifts(currentTimetable, Shift.MATUTINO, row, day, line, false);
+                }
             }
         }
-
+        currentTimetable = null;
         for(int i = beginningRow; i < mySheet.getLastRowNum(); i++) {
             //Estou na linha Agora basta ler das colunas 4 até 11, 20 até 26 e depois 26 até 28
             //Fazer dois laços de repetição
@@ -71,17 +67,21 @@ public class TimetableServiceImpl implements TimetableService {
             line = "";
             if (row != null) {
                 if (row.getCell(0) != null && row.getCell(0).getCellType() != CellType.BLANK && !row.getCell(0).getStringCellValue().equals("NOME")) {
-                    professor = row.getCell(0).getStringCellValue();
-                    System.out.println(professor);
-                    System.out.println("Hora   S T Q Q S S");
-                    currentTimetable = createEmptyProfessorPreferableTimetableNoturno(timetableIdIncrementor, professorIdIncrementor, professor, Shift.NOTURNO);
-                    timetableIdIncrementor++;
-                    professorIdIncrementor++;
-                    day = -1;
-                    timetableList.add(currentTimetable);
+                    professor = row.getCell(0).getStringCellValue().toUpperCase().trim().replace(" ", "");
+                    currentTimetable = null;
+                    if(professors.containsKey(professor)){
+                        System.out.println(professor);
+                        System.out.println("Hora   S T Q Q S S");
+                        currentTimetable = createEmptyProfessorPreferableTimetableNoturno(timetableIdIncrementor, Integer.parseInt(professors.get(professor)), professor, Shift.NOTURNO);
+                        timetableIdIncrementor++;
+                        day = -1;
+                        timetableList.add(currentTimetable);
+                    }
                 }
-                currentTimetable = processTimetableShifts(currentTimetable, Shift.NOTURNO, row, day, line, false);
-                currentTimetable = processTimetableShifts(currentTimetable, Shift.NOTURNO, row, day, line, true);
+                if(!Objects.isNull(currentTimetable)) {
+                    currentTimetable = processTimetableShifts(currentTimetable, Shift.NOTURNO, row, day, line, false);
+                    currentTimetable = processTimetableShifts(currentTimetable, Shift.NOTURNO, row, day, line, true);
+                }
 
             }
         }
@@ -90,7 +90,7 @@ public class TimetableServiceImpl implements TimetableService {
     }
 
     //Reads QDA file to get shifts, professors and subjects
-    public List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization) throws IOException {
+    public List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization, HashMap<Object, String> professors) throws IOException {
         File myFile = new File(xlsxPath);
         FileInputStream fis = new FileInputStream(myFile);
 
@@ -111,27 +111,32 @@ public class TimetableServiceImpl implements TimetableService {
             if(row.getCell(0) != null && !row.getCell(0).getCellType().equals(CellType.BLANK)) {
                 professorId++;
             }
-            if(row.getCell(10).getStringCellValue().equals("Engenharia da Computação")) {
+            if(row.getCell(10).getStringCellValue().equals("Engenharia da Computação")
+                && !row.getCell(14).getStringCellValue().contains("Estágio")
+                && !row.getCell(14).getStringCellValue().contains("Optativa")) {
                 int period = Integer.parseInt(row.getCell(13).getStringCellValue().replace("º", "").trim());
                 String rowPeriodSubject = row.getCell(13).getStringCellValue().replace("º", "").trim();
                 boolean isSubjectThisSemester = Objects.isNull(((HashMap<String, String>)periodPrioritization.get("MATUTINO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim()));
                 if (!isSubjectThisSemester) {
+                    Professor professor = Professor
+                            .builder()
+                            .name(row.getCell(1).getStringCellValue())
+                            .onlyUEMGProfessor(false)
+                            .id(String.valueOf(professorId))
+                            .build();
+                    professors.put(professor.getName().trim().toUpperCase().replace(" ", ""), Integer.toString(professorId));
+                    int numberOfLessons = (int) (row.getCell(16).getNumericCellValue() + row.getCell(17).getNumericCellValue());
                     subject = Subject
                             .builder()
                             .className(row.getCell(14).getStringCellValue())
-                            .numbersOfLessons(4)
+                            .numbersOfLessons(numberOfLessons)
                             .period(period)
                             .shift(row.getCell(12).getStringCellValue().contains("Not") ? Shift.NOTURNO : Shift.MATUTINO)
                             .prioritization(period % 2 == 0
                                     ? Integer.parseInt(((HashMap<String, String>) periodPrioritization.get("MATUTINO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim()))
                                     : Integer.parseInt(((HashMap<String, String>) periodPrioritization.get("NOTURNO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim())))
                             .professor(
-                                    Professor
-                                            .builder()
-                                            .name(row.getCell(1).getStringCellValue())
-                                            .onlyUEMGProfessor(false)
-                                            .id(String.valueOf(professorId))
-                                            .build()
+                                    professor
                             )
                             .build();
                 }
@@ -160,6 +165,7 @@ public class TimetableServiceImpl implements TimetableService {
         timetable.setId(timetableIdIncrementor);
         timetable.setProfessorId(professorIdIncrementor);
         timetable.setShift(shift);
+        timetable.setQtyPreferableTimes(0);
         timetable.setProfessor(
                 Professor
                         .builder()
@@ -175,6 +181,7 @@ public class TimetableServiceImpl implements TimetableService {
                         .builder()
                         .time(retrieveClasstimeTime(i, shift.toString()))
                         .dayOfTheWeek(retrieveClasstimeDay(j))
+                        .prioritization(j)
                         .build();
                 timetable.getClasses().add(classTime);
             }
@@ -189,6 +196,7 @@ public class TimetableServiceImpl implements TimetableService {
         timetable.setId(timetableIdIncrementor);
         timetable.setProfessorId(professorIdIncrementor);
         timetable.setShift(shift);
+        timetable.setQtyPreferableTimes(0);
         timetable.setProfessor(
                 Professor
                         .builder()
@@ -204,6 +212,7 @@ public class TimetableServiceImpl implements TimetableService {
                         .builder()
                         .time(retrieveClasstimeTime(i, shift.toString()))
                         .dayOfTheWeek(retrieveClasstimeDay(j))
+                        .prioritization(j)
                         .build();
                 timetable.getClasses().add(classTime);
             }
@@ -214,11 +223,119 @@ public class TimetableServiceImpl implements TimetableService {
                     .builder()
                     .time(retrieveClasstimeTime(i, Shift.MATUTINO.toString()))
                     .dayOfTheWeek(retrieveClasstimeDay(5))
+                    .prioritization(5)
                     .build();
             timetable.getClasses().add(classTime);
         }
 
         return timetable;
+    }
+
+    @Override
+    public void exportGeneratedTimetable(List<Timetable> generatedTimetables) throws IOException {
+        FileInputStream templateFile = new FileInputStream("src/main/java/generated/timetables/horarios_template.xlsx");
+        Workbook workbook = WorkbookFactory.create(templateFile);
+        templateFile.close();
+
+        // Create a cell style that wraps text
+        CellStyle cellStyle = workbook.createCellStyle();
+        cellStyle.setWrapText(true); // Enable text wrapping
+        cellStyle.setAlignment(HorizontalAlignment.CENTER);
+        String cellValue = workbook.getSheetAt(0).getRow(1).getCell(0).getStringCellValue();
+        workbook.getSheetAt(0).getRow(1).getCell(0)
+                .setCellValue(
+                        cellValue.replace("[INDICAR SEMESTRE E ANO]", "1 SEMESTRE DE 2023 ")
+                                .replace("[INDICAR TURNO]", "MATUTINO")
+                );
+        // Create a sheet within the workbook
+        Sheet sheet = workbook.getSheetAt(0);
+
+        // Define the file path where the Excel file will be saved
+        String filePath = "src/main/java/generated/timetables/sample.xlsx";
+
+
+
+        /*Row row = sheet.createRow(0);
+        for(int i = 0; i < 6; i++) {
+            // Create a cell and set the style
+            Cell cell = row.createCell(0);
+            cell.setCellValue("This is a \n long text that should wrap in the cell.");
+            cell.setCellStyle(cellStyle); // Apply the wrap style
+
+            // Auto-size the row's height based on content
+            row.setHeight((short) -1); // -1 means auto size
+        }*/
+
+        HashMap<Object, Integer> dayColumn = new HashMap<>();
+        dayColumn.put("Segunda-Feira", 1);
+        dayColumn.put("Terça-Feira", 2);
+        dayColumn.put("Quarta-Feira", 3);
+        dayColumn.put("Quinta-Feira", 4);
+        dayColumn.put("Sexta-Feira", 5);
+        dayColumn.put("Sábado", 7);
+
+        HashMap<Object, Integer> hourRow = new HashMap<>();
+        hourRow.put("07:00", 6);
+        hourRow.put("07:50", 7);
+        hourRow.put("08:40", 8);
+        hourRow.put("09:45", 10);
+        hourRow.put("10:35", 11);
+        hourRow.put("11:25", 12);
+        hourRow.put("18:30", 6);
+        hourRow.put("19:20", 7);
+        hourRow.put("20:25", 8);
+        hourRow.put("21:15", 10);
+        hourRow.put("22:05", 11);
+
+        HashMap<Object, String> periods = new HashMap<>();
+        periods.put("1", "1º");
+        periods.put("3", "3º");
+        periods.put("5", "5º");
+        periods.put("7", "7º");
+        periods.put("9", "9º");
+        int period = 0;
+        int rowLine = 4;
+        int columnLine = 0;
+        int countPeriod = 0;
+        Row row = sheet.getRow(rowLine);
+
+        row.getCell(columnLine).setCellValue(periods.get(Integer.toString(period) + " " + row.getCell(columnLine).getStringCellValue()));
+
+        rowLine = 6;
+        columnLine++;
+        for(Timetable timetable: generatedTimetables){
+            for(period = 1; period <= 9; period = period + 2){
+                int finalPeriod = period;
+                for(ClassTime c: timetable.getClasses().stream().filter(
+                        classTime -> !Objects.isNull(classTime.getSubject())
+                                && classTime.getSubject().getPeriod() == finalPeriod
+                                && classTime.getSubject().getShift().equals(Shift.MATUTINO)).collect(Collectors.toList())) {
+                    columnLine = dayColumn.get(c.getDayOfTheWeek());
+                    if (!hourRow.containsKey(hourRow.get(c.getTime()))) {
+                        int q = 0;
+                    }
+
+
+                    rowLine = hourRow.get(c.getTime()) + (countPeriod * 16);
+                    sheet.getRow(rowLine).getCell(columnLine).setCellValue(c.getSubject().getClassName() + "\n" +
+                            timetable.getProfessor().getName());
+                    // Auto-adjust the row height
+                    sheet.getRow(rowLine).setHeight((short)-1);
+                    // Autosize the column width
+                    sheet.autoSizeColumn(columnLine);
+                }
+                countPeriod++;
+            }
+            countPeriod = 0;
+        }
+
+        // Write the workbook data to a file
+        try (FileOutputStream fileOut = new FileOutputStream(filePath)) {
+            workbook.write(fileOut);
+        }
+
+        // Close the workbook
+        workbook.close();
     }
 
     public String retrieveClasstimeTime(int timePosition, String shift){
@@ -328,7 +445,7 @@ public class TimetableServiceImpl implements TimetableService {
                                             .equals(saturday ? retrieveClasstimeDay(6) : retrieveClasstimeDay(finalTest - beginningcolumn - 1))
                                             && t.getTime().equals(convertHoursToString(finalLine.trim().split(" ")[0])))
                                     .collect(Collectors.toList()).get(0).setPreferable(true);
-
+                            currentTimetable.setQtyPreferableTimes(currentTimetable.getQtyPreferableTimes() + 1);
                         }
                         break;
                     case BLANK:
