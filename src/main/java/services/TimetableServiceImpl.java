@@ -106,16 +106,18 @@ public class TimetableServiceImpl implements TimetableService {
         List<Subject> subjectList = new ArrayList<>();
         int professorId = 0;
         Subject subject = null;
+        HashMap<String, Professor> professorsMap = new HashMap<>();
+        int qtyClasses = 0;
         for(int i = 1; i < mySheet.getLastRowNum(); i++) {
             Row row = mySheet.getRow(i);
             if(row.getCell(0) != null && !row.getCell(0).getCellType().equals(CellType.BLANK)) {
                 professorId++;
             }
-            if(row.getCell(10).getStringCellValue().equals("Engenharia da Computação")
-                && !row.getCell(14).getStringCellValue().contains("Estágio")
-                && !row.getCell(14).getStringCellValue().contains("Optativa")) {
-                int period = Integer.parseInt(row.getCell(13).getStringCellValue().replace("º", "").trim());
-                String rowPeriodSubject = row.getCell(13).getStringCellValue().replace("º", "").trim();
+            if( !row.getCell(14).getStringCellValue().contains("Estágio")
+                && !row.getCell(14).getStringCellValue().contains("Optativa")
+                    && !row.getCell(13).getStringCellValue().isBlank()
+            ) {
+                int period = Integer.parseInt(row.getCell(13).getStringCellValue().split("º")[0].trim());
                 boolean isSubjectThisSemester = Objects.isNull(((HashMap<String, String>)periodPrioritization.get("MATUTINO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim()));
                 if (!isSubjectThisSemester) {
                     Professor professor = Professor
@@ -124,21 +126,40 @@ public class TimetableServiceImpl implements TimetableService {
                             .onlyUEMGProfessor(false)
                             .id(String.valueOf(professorId))
                             .build();
-                    professors.put(professor.getName().trim().toUpperCase().replace(" ", ""), Integer.toString(professorId));
-                    int numberOfLessons = (int) (row.getCell(16).getNumericCellValue() + row.getCell(17).getNumericCellValue());
-                    subject = Subject
-                            .builder()
-                            .className(row.getCell(14).getStringCellValue())
-                            .numbersOfLessons(numberOfLessons)
-                            .period(period)
-                            .shift(row.getCell(12).getStringCellValue().contains("Not") ? Shift.NOTURNO : Shift.MATUTINO)
-                            .prioritization(period % 2 == 0
-                                    ? Integer.parseInt(((HashMap<String, String>) periodPrioritization.get("MATUTINO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim()))
-                                    : Integer.parseInt(((HashMap<String, String>) periodPrioritization.get("NOTURNO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim())))
-                            .professor(
-                                    professor
-                            )
-                            .build();
+                    professors.putIfAbsent(professor.getName().trim().toUpperCase().replace(" ", ""), Integer.toString(professorId));
+                    professorsMap.putIfAbsent(professor.getId(), professor);
+                    if(row.getCell(10).getStringCellValue().equals("Engenharia da Computação")) {
+
+                        /*
+                        switch (row.getCell(8).getCellType()){
+                            case NUMERIC:
+                                qtyClasses = (int ) row.getCell(8).getNumericCellValue();
+                                break;
+                            case STRING:
+                                qtyClasses = Integer.parseInt(row.getCell(8).getStringCellValue());
+                                break;
+                            default:
+                                qtyClasses = 0;
+                                break;
+                        }*/
+
+                        professorsMap
+                                .get(professor.getId()).setQtyClasses(24);
+                        int numberOfLessons = (int) (row.getCell(16).getNumericCellValue() + row.getCell(17).getNumericCellValue());
+                        subject = Subject
+                                .builder()
+                                .className(row.getCell(14).getStringCellValue())
+                                .numbersOfLessons(numberOfLessons)
+                                .period(period)
+                                .shift(row.getCell(12).getStringCellValue().contains("Not") ? Shift.NOTURNO : Shift.MATUTINO)
+                                .prioritization(period % 2 == 0
+                                        ? Integer.parseInt(((HashMap<String, String>) periodPrioritization.get("MATUTINO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim()))
+                                        : Integer.parseInt(((HashMap<String, String>) periodPrioritization.get("NOTURNO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim())))
+                                .professor(
+                                        professor
+                                )
+                                .build();
+                    }
                 }
             }
             if(subject != null){
@@ -166,6 +187,7 @@ public class TimetableServiceImpl implements TimetableService {
         timetable.setProfessorId(professorIdIncrementor);
         timetable.setShift(shift);
         timetable.setQtyPreferableTimes(0);
+        timetable.setPoints(0);
         timetable.setProfessor(
                 Professor
                         .builder()
@@ -197,6 +219,7 @@ public class TimetableServiceImpl implements TimetableService {
         timetable.setProfessorId(professorIdIncrementor);
         timetable.setShift(shift);
         timetable.setQtyPreferableTimes(0);
+        timetable.setPoints(0);
         timetable.setProfessor(
                 Professor
                         .builder()
@@ -440,12 +463,14 @@ public class TimetableServiceImpl implements TimetableService {
                             int finalTest = test;
                             String finalCurrentTime = currentTime;
                             String finalLine = line;
-                            currentTimetable.getClasses().stream()
+                            ClassTime ct = currentTimetable.getClasses().stream()
                                     .filter(t -> t.getDayOfTheWeek()
                                             .equals(saturday ? retrieveClasstimeDay(6) : retrieveClasstimeDay(finalTest - beginningcolumn - 1))
                                             && t.getTime().equals(convertHoursToString(finalLine.trim().split(" ")[0])))
-                                    .collect(Collectors.toList()).get(0).setPreferable(true);
+                                    .collect(Collectors.toList()).get(0);
+                            ct.setPreferable(true);
                             currentTimetable.setQtyPreferableTimes(currentTimetable.getQtyPreferableTimes() + 1);
+
                         }
                         break;
                     case BLANK:

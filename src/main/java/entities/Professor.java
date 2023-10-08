@@ -13,6 +13,7 @@ public class Professor {
     private String id;
     private String name;
     private int prioritizationLevel = -1;
+    private int qtyClasses = 0;
     private boolean onlyUEMGProfessor = false;
 
 }

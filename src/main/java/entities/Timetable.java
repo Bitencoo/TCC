@@ -16,6 +16,7 @@ public class Timetable {
     private int id;
     private int professorId;
     private int qtyPreferableTimes;
+    private int points;
     private Shift shift;
     private Professor professor;
     private List<ClassTime> classes;

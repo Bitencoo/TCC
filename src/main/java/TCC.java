@@ -8,7 +8,6 @@ import services.PrioritizationServiceImpl;
 import services.TimetableServiceImpl;
 
 import java.io.IOException;
-import java.sql.Time;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -139,6 +138,7 @@ public class TCC {
                                     qtyOpenClasses = daysAvailableClasses.get(Integer.toString(subject.getPeriod()) + "-" + currentTimetableList.getClasses().get(currentDayNumber).getDayOfTheWeek());
                                 }
                             } else {
+
                                 if (currentClassTimeLength <= qtyOpenClasses) {
                                     for(Object st : daysAvailableClasses.keySet()){
                                         if (daysAvailableClasses.get(st) >= currentClassTimeLength && st.toString().split("-")[0].equals(Integer.toString(subject.getPeriod()))) {
@@ -163,26 +163,53 @@ public class TCC {
                                     //sumDayNumber = 0;
                                     dayNumber = dayNumber + currentClassTimeAfter;
                                 } else {
-                                    for(Object st : daysAvailableClasses.keySet()){
-                                        if (daysAvailableClasses.get(st) >= qtyOpenClasses && st.toString().split("-")[0].equals(Integer.toString(subject.getPeriod()))) {
-                                            day = st.toString();
-                                            break;
+                                    if (currentClassTimeLength > 3) {
+                                        int qtyToAllocate = (currentClassTimeLength / 2) + 1 <= qtyOpenClasses ?
+                                                (currentClassTimeLength / 2) + 1 :
+                                                (currentClassTimeLength / 2);
+                                        for (Object st : daysAvailableClasses.keySet()) {
+                                            if (daysAvailableClasses.get(st) >= qtyToAllocate && st.toString().split("-")[0].equals(Integer.toString(subject.getPeriod()))) {
+                                                day = st.toString();
+                                                break;
+                                            }
                                         }
+                                        currentClassTimeAfter = allocateClasses(
+                                                classTimeListToAllocate,
+                                                currentTimetableList,
+                                                preferableTimetable,
+                                                subject,
+                                                qtyToAllocate,
+                                                //dayNumber,
+                                                currentClassTimeLength,
+                                                day);
+                                        //sumDayNumber = 1;
+                                        qtyOpenClasses = qtyOpenClasses - qtyToAllocate;
+                                        dayNumber++;
+                                        currentClassTimeLength = currentClassTimeLength - currentClassTimeAfter;
+                                        daysAvailableClasses.put(day, daysAvailableClasses.get(day) - currentClassTimeAfter);
+
+                                    } else {
+                                        for (Object st : daysAvailableClasses.keySet()) {
+                                            if (daysAvailableClasses.get(st) >= qtyOpenClasses && st.toString().split("-")[0].equals(Integer.toString(subject.getPeriod()))) {
+                                                day = st.toString();
+                                                break;
+                                            }
+                                        }
+                                        currentClassTimeAfter = allocateClasses(
+                                                classTimeListToAllocate,
+                                                currentTimetableList,
+                                                preferableTimetable,
+                                                subject,
+                                                qtyOpenClasses,
+                                                //dayNumber,
+                                                currentClassTimeLength,
+                                                day);
+                                        //sumDayNumber = 1;
+                                        qtyOpenClasses = 0;
+                                        dayNumber++;
+                                        currentClassTimeLength = currentClassTimeLength - currentClassTimeAfter;
+                                        daysAvailableClasses.put(day, daysAvailableClasses.get(day) - currentClassTimeAfter);
                                     }
-                                    currentClassTimeAfter = allocateClasses(
-                                            classTimeListToAllocate,
-                                            currentTimetableList,
-                                            preferableTimetable,
-                                            subject,
-                                            qtyOpenClasses,
-                                            //dayNumber,
-                                            currentClassTimeLength,
-                                            day);
-                                    //sumDayNumber = 1;
-                                    qtyOpenClasses = 0;
-                                    dayNumber++;
-                                    currentClassTimeLength = currentClassTimeLength - currentClassTimeAfter;
-                                    daysAvailableClasses.put(day, daysAvailableClasses.get(day) - currentClassTimeAfter);
                                 }
                             }
                         } else {
@@ -371,6 +398,11 @@ public class TCC {
             daysToAllocate.stream().forEach(dayn -> {
                 currentTimetable.getClasses().get(dayn).setSubject(subject);
                 classTimeListToAllocate.add(currentTimetable.getClasses().get(dayn));
+                classTimeListToAllocate.stream().forEach(classTime -> {
+                    if(classTime.isPreferable()){
+                        currentTimetable.setPoints(currentTimetable.getPoints() + 1);
+                    }
+                });
             });
 
             allocatedClasses = daysToAllocate.size();
