@@ -51,4 +51,27 @@ public class PrioritizationServiceImpl implements PrioritizationService {
 
         return periodMap;
     }
+
+    @Override
+    public HashMap<Object, Object> readSubjectsPrioritization(String xlsxPath) throws IOException {
+        File myFile = new File(xlsxPath);
+        FileInputStream fis = new FileInputStream(myFile);
+
+        // Finds the workbook instance for XLSX file
+        XSSFWorkbook myWorkBook = new XSSFWorkbook(fis);
+
+        // Return first sheet from the XLSX workbook
+        XSSFSheet mySheet = myWorkBook.getSheetAt(0);
+
+        HashMap<Object, Object> subjectPrioritizationMap = new HashMap<>();
+        for(int i = 3; i < mySheet.getLastRowNum(); i++){
+            Row subjectIdentification = mySheet.getRow(i);
+            subjectPrioritizationMap.put(
+                    subjectIdentification.getCell(2).getStringCellValue().trim(),
+                    subjectIdentification.getCell(4).getNumericCellValue()
+            );
+        }
+
+        return subjectPrioritizationMap;
+    }
 }

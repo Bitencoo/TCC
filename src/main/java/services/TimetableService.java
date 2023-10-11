@@ -13,7 +13,7 @@ import java.util.Map;
 public interface TimetableService {
     List<Timetable> readPreferableTimetableFromExcel(String xlsxPath, HashMap<Object, String> professors) throws IOException;
 
-    List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization, HashMap<Object, String> professors) throws IOException;
+    List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization, HashMap<Object, String> professors, HashMap<Object, Object> subjectsPrioritizationMap) throws IOException;
 
     Timetable createEmptyProfessorPreferableTimetableMatutino(int timetableIdIncrementor, int professorIdIncrementor, String professorName, Shift shift);
 

@@ -61,8 +61,6 @@ public class TimetableServiceImpl implements TimetableService {
         }
         currentTimetable = null;
         for(int i = beginningRow; i < mySheet.getLastRowNum(); i++) {
-            //Estou na linha Agora basta ler das colunas 4 até 11, 20 até 26 e depois 26 até 28
-            //Fazer dois laços de repetição
             Row row = mySheet.getRow(i);
             line = "";
             if (row != null) {
@@ -90,7 +88,7 @@ public class TimetableServiceImpl implements TimetableService {
     }
 
     //Reads QDA file to get shifts, professors and subjects
-    public List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization, HashMap<Object, String> professors) throws IOException {
+    public List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization, HashMap<Object, String> professors, HashMap<Object, Object> subjectsPrioritizationMap) throws IOException {
         File myFile = new File(xlsxPath);
         FileInputStream fis = new FileInputStream(myFile);
 
@@ -130,32 +128,50 @@ public class TimetableServiceImpl implements TimetableService {
                     professorsMap.putIfAbsent(professor.getId(), professor);
                     if(row.getCell(10).getStringCellValue().equals("Engenharia da Computação")) {
 
-                        /*
-                        switch (row.getCell(8).getCellType()){
-                            case NUMERIC:
-                                qtyClasses = (int ) row.getCell(8).getNumericCellValue();
-                                break;
-                            case STRING:
-                                qtyClasses = Integer.parseInt(row.getCell(8).getStringCellValue());
-                                break;
-                            default:
-                                qtyClasses = 0;
-                                break;
-                        }*/
 
-                        professorsMap
-                                .get(professor.getId()).setQtyClasses(24);
+                        if(!Objects.isNull(row.getCell(8))){
+                            switch(row.getCell(8).getCellType()){
+                                case NUMERIC:
+                                    qtyClasses = (int ) row.getCell(8).getNumericCellValue();
+                                    break;
+                                case STRING:
+                                    if(row.getCell(8).getStringCellValue().contains("+")){
+                                        qtyClasses = Integer.parseInt(
+                                                row.getCell(8).getStringCellValue().split("\\+")[0]) +
+                                                Integer.parseInt(
+                                                        row.getCell(8).getStringCellValue().split("\\+")[1]);
+                                    } else {
+                                        qtyClasses = Integer.parseInt(row.getCell(8).getStringCellValue());
+                                    }
+                                    break;
+                                default:
+                                    qtyClasses = 0;
+                                    break;
+                            }
+                        }
+
+                        if(professorsMap.get(professor.getId()).getQtyClasses() == 0){
+                            professorsMap
+                                    .get(professor.getId()).setQtyClasses(qtyClasses);
+                        }
+
                         int numberOfLessons = (int) (row.getCell(16).getNumericCellValue() + row.getCell(17).getNumericCellValue());
+                        String subjectName = row.getCell(14).getStringCellValue().replace("I-", "I").replace("- (", "I").split("\\(")[0].trim();
+                        if(row.getCell(14).getStringCellValue().replace("I-", "I").replace("- (", "I").split("\\(")[0].trim().contains("Metodologia Cientifica para Computação")){
+                            subjectName = "Metodologia Cientifica para Computação";
+                        }
+
                         subject = Subject
                                 .builder()
                                 .className(row.getCell(14).getStringCellValue())
                                 .numbersOfLessons(numberOfLessons)
                                 .period(period)
                                 .shift(row.getCell(12).getStringCellValue().contains("Not") ? Shift.NOTURNO : Shift.MATUTINO)
-                                .prioritization(period % 2 == 0
-                                        ? Integer.parseInt(((HashMap<String, String>) periodPrioritization.get("MATUTINO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim()))
-                                        : Integer.parseInt(((HashMap<String, String>) periodPrioritization.get("NOTURNO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim())))
-                                .professor(
+                                .prioritization(
+                                        subjectsPrioritizationMap.containsKey(subjectName) ?
+                                                (int) Double.parseDouble(subjectsPrioritizationMap.get(subjectName).toString())
+                                                : -1)
+                        .professor(
                                         professor
                                 )
                                 .build();
@@ -171,6 +187,10 @@ public class TimetableServiceImpl implements TimetableService {
                 = (s1, s2) -> (int) s1.getPrioritization() - s2.getPrioritization();
         subjectList.sort(subjectComparator);
         subjectList = subjectList.stream().sorted((s1, s2) -> s1.getShift().toString().compareTo(s2.getShift().toString())).collect(Collectors.toList());
+
+        subjectList.stream().forEach(subject1 -> {
+            subject1.getProfessor().setQtyClasses(professorsMap.get(subject1.getProfessor().getId()).getQtyClasses());
+        });
         return subjectList;
     }
 
@@ -275,19 +295,6 @@ public class TimetableServiceImpl implements TimetableService {
 
         // Define the file path where the Excel file will be saved
         String filePath = "src/main/java/generated/timetables/sample.xlsx";
-
-
-
-        /*Row row = sheet.createRow(0);
-        for(int i = 0; i < 6; i++) {
-            // Create a cell and set the style
-            Cell cell = row.createCell(0);
-            cell.setCellValue("This is a \n long text that should wrap in the cell.");
-            cell.setCellStyle(cellStyle); // Apply the wrap style
-
-            // Auto-size the row's height based on content
-            row.setHeight((short) -1); // -1 means auto size
-        }*/
 
         HashMap<Object, Integer> dayColumn = new HashMap<>();
         dayColumn.put("Segunda-Feira", 1);

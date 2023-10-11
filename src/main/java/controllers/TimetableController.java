@@ -25,10 +25,10 @@ public class TimetableController {
         }
     }
 
-    public List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization, HashMap<Object, String> professors) {
+    public List<Subject> readQDA(String xlsxPath, Map<Object, Object> periodPrioritization, HashMap<Object, String> professors, HashMap<Object, Object> subjectsPrioritizationMap) {
         try {
             List<Subject> subjectList =
-                    timetableService.readQDA(xlsxPath, periodPrioritization, professors);
+                    timetableService.readQDA(xlsxPath, periodPrioritization, professors, subjectsPrioritizationMap);
             return subjectList;
         } catch (IOException e) {
             throw new RuntimeException(e);

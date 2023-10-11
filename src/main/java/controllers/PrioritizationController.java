@@ -15,4 +15,8 @@ public class PrioritizationController {
     public Map<Object, Object> readPeriodPrioritization(String xlsxPath) throws IOException {
         return prioritizationService.readPeriodPrioritization(xlsxPath);
     }
+
+    public Map<Object, Object> readSubjectsPrioritization(String xlsxPath) throws IOException {
+        return prioritizationService.readSubjectsPrioritization(xlsxPath);
+    }
 }
