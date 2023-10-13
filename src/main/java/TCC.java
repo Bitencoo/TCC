@@ -1,6 +1,7 @@
 import controllers.PrioritizationController;
 import controllers.TimetableController;
 import entities.ClassTime;
+import entities.Professor;
 import entities.Subject;
 import entities.Timetable;
 import enums.Shift;
@@ -9,6 +10,7 @@ import services.TimetableServiceImpl;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public class TCC {
@@ -18,7 +20,7 @@ public class TCC {
         HashMap<Object, Object> periodMap;
         HashMap<Object, String> professors = new HashMap<>();
         HashMap<Object, Object> subjectsPrioritizationMap = new HashMap<>();
-
+        AtomicReference<HashMap<String, Professor>> professorHashMapRef = new AtomicReference<>(new HashMap<>());
         List<Timetable> timetableList = new ArrayList<>();
         List<ClassTime> allocatedClasses = new ArrayList<>();
         Timetable allocatedTimetable = new Timetable();
@@ -43,9 +45,59 @@ public class TCC {
                             : timetableController.createEmptyProfessorPreferableTimetableNoturno(timetable.getId(), timetable.getProfessorId(), timetable.getProfessor().getName(), timetable.getShift()));
         }
 
+        subjectList.stream().forEach(
+                subject ->
+                {
+                    professorHashMapRef.getAndUpdate(
+                            map -> {
+                                map.putIfAbsent(
+                                        subject.getProfessor().getId() + "-" + subject.getShift().toString(),
+                                        subject.getProfessor()
+                                );
+                                return map;
+                            }
+                    );
+                }
+        );
+
+        preferableTimetableList.stream().forEach(
+                timetable -> {
+                    professorHashMapRef.getAndUpdate(
+                            map -> {
+                                if (map.containsKey(timetable.getProfessor().getId() + "-" + timetable.getShift().toString())) {
+                                    map.get(timetable.getProfessor().getId() + "-" + timetable.getShift().toString())
+                                            .setQtyPreferableTimes(timetable.getQtyPreferableTimes());
+                                }
+                                return map;
+                            }
+                    );
+                }
+        );
+
+        subjectList.stream().forEach(
+                subject -> {
+                    subject.setProfessor(
+                            professorHashMapRef.get().get(subject.getProfessor().getId() + "-" + subject.getShift().toString())
+                    );
+                }
+        );
+
+
+        HashMap<String, Professor> professorHashMap = rankProfessors(professorHashMapRef);
+
+        preferableTimetableList.stream().forEach(
+                timetable -> {
+                    timetable.setProfessor(
+                            professorHashMap.get(timetable.getProfessor().getId() + "-" + timetable.getShift().toString())
+                    );
+                }
+        );
+
+        preferableTimetableList = preferableTimetableList.stream().filter(timetable -> !Objects.isNull(timetable.getProfessor())).collect(Collectors.toList());
         allocatedClasses = allocateClassTimes(subjectList, periodMap, preferableTimetableList);
         allocatedTimetable.setClasses(allocatedClasses);
-        timetableController.exportGeneratedTimetable(preferableTimetableList);
+        timetableController.exportGeneratedTimetable(preferableTimetableList, Shift.MATUTINO);
+        timetableController.exportGeneratedTimetable(preferableTimetableList, Shift.NOTURNO);
     }
 
     public static List<ClassTime> allocateClassTimes(List<Subject> subjectList, HashMap<Object, Object> periodMap, List<Timetable> preferableTimetable) {
@@ -61,27 +113,28 @@ public class TCC {
         LinkedHashMap<Object, Integer> daysAvailableClasses = new LinkedHashMap<>();
         HashMap<String, Shift> shifts = new HashMap<>();
         shifts = populateShifts(shifts);
-        daysAvailableClasses = emptyDaysAvailableClasses(daysAvailableClasses, Shift.MATUTINO);
-        /*for(String shiftKey: shifts.keySet()){
-            daysAvailableClasses = emptyDaysAvailableClasses(daysAvailableClasses, shifts.get(shiftKey));
-        }*/
-        for(String s : ((HashMap<String, String>) periodMap.get("MATUTINO")).keySet().stream().collect(Collectors.toList())) {
-            currentSubjectList = subjectList.stream().filter(sub -> sub.getPeriod() == Integer.parseInt(s) && sub.getShift().equals(Shift.MATUTINO)).collect(Collectors.toList());
-            currentSubjectList = allocationRank(currentSubjectList, preferableTimetable);
-            List<ClassTime> classTimeListToAllocate = new ArrayList<>();
+        for(String st : shifts.keySet()) {
+            daysAvailableClasses = emptyDaysAvailableClasses(daysAvailableClasses, shifts.get(st));
+            for (String s : ((HashMap<String, String>) periodMap.get(shifts.get(st).toString())).keySet().stream().collect(Collectors.toList())) {
+                HashMap<String, Shift> finalShifts = shifts;
+                currentSubjectList = subjectList.stream().filter(sub -> sub.getPeriod() == Integer.parseInt(s) && sub.getShift().equals(finalShifts.get(st))).collect(Collectors.toList());
+                currentSubjectList = allocationRank(currentSubjectList, preferableTimetable);
+                List<ClassTime> classTimeListToAllocate = new ArrayList<>();
 
-            for (Subject subject: currentSubjectList){
-                currentTimetableList = preferableTimetable.stream().filter(timetable -> timetable.getShift().equals(Shift.MATUTINO) && timetable.getProfessor().getId().equals(subject.getProfessor().getId())).collect(Collectors.toList()).get(0);
-                defineClassesToAllocate(
-                        daysAvailableClasses,
-                        classTimeListToAllocate,
-                        currentTimetableList,
-                        preferableTimetable,
-                        subject,
-                        subject.getNumbersOfLessons()
-                );
-                allocatedClasses.addAll(classTimeListToAllocate);
-                classTimeListToAllocate.clear();
+                for (Subject subject : currentSubjectList) {
+                    HashMap<String, Shift> finalShifts1 = shifts;
+                    currentTimetableList = preferableTimetable.stream().filter(timetable -> !Objects.isNull(timetable.getProfessor()) && timetable.getShift().equals(finalShifts1.get(st)) && timetable.getProfessor().getId().equals(subject.getProfessor().getId())).collect(Collectors.toList()).get(0);
+                    defineClassesToAllocate(
+                            daysAvailableClasses,
+                            classTimeListToAllocate,
+                            currentTimetableList,
+                            preferableTimetable,
+                            subject,
+                            subject.getNumbersOfLessons()
+                    );
+                    allocatedClasses.addAll(classTimeListToAllocate);
+                    classTimeListToAllocate.clear();
+                }
             }
         }
         return allocatedClasses;
@@ -100,7 +153,7 @@ public class TCC {
         List<Integer> daysToAllocate = new ArrayList<>();
 
         while(allocatedClasses != 0){
-            currentTime = retrieveClasstimeFromAvailableClasses(currentClassTimeLength, subject.getShift().toString());
+            currentTime = retrieveClasstimeFromAvailableClasses(currentClassTimeLength, subject.getShift().toString(), day);
 
             // Verifica se não foi alocada nenhuma aula e se o dia atual corresponde ao do horário
             String finalCurrentTime = currentTime;
@@ -109,6 +162,7 @@ public class TCC {
             // 0 indica que ainda não foi alocado horário para o professor
             int validateProfessorFree = preferableTimetable.stream().filter(timetable ->
                     timetable.getProfessor().getId().equals(subject.getProfessor().getId())
+                            && timetable.getShift().equals(subject.getShift())
                             && timetable.getClasses().stream().anyMatch(
                             classTime ->
                                     classTime.getDayOfTheWeek().equals(finalDay)
@@ -118,6 +172,7 @@ public class TCC {
             ).collect(Collectors.toList()).size();
 
             int validateTimetableFree = preferableTimetable.stream().filter(timetable ->
+                            timetable.getShift().equals(subject.getShift()) &&
                     timetable.getClasses().stream().anyMatch(
                             classTime ->
                                     classTime.getDayOfTheWeek().equals(finalDay)
@@ -171,15 +226,19 @@ public class TCC {
     // Falta colocar a condição de 0, nesse caso, será o último professor a ser alocado, pois o mesmo não preencheu
     // a planilha.
     public static List<Subject> allocationRank(List<Subject> subjectList, List<Timetable> timetableList) {
-        Comparator<Timetable> timetableComparator
-                = (t1, t2) -> (int) t1.getQtyPreferableTimes() - t2.getQtyPreferableTimes();
-        timetableList.sort(timetableComparator);
+        List<Subject> sortedSubjects = new ArrayList<>();
+        for(int i = 1; i <= 5; i++){
+            int finalI = i;
+            List<Subject> newSubjectList = subjectList.stream()
+                    .filter(subject -> subject.getPrioritization() == finalI).collect(Collectors.toList());
+            Comparator<Subject> subjectComparator = Comparator
+                    .comparingInt((Subject subject) -> subject.getProfessor().getPrioritizationLevel())
+                    .thenComparingInt((Subject subject) -> subject.getProfessor().getPrioritizationByEducation());
+            newSubjectList.sort(subjectComparator);
+            sortedSubjects.addAll(newSubjectList);
+        }
 
-        Comparator<Subject> subjectComparator
-                = (s1, s2) -> s1.getPrioritization() - s2.getPrioritization();
-        subjectList.sort(subjectComparator);
-
-        return subjectList;
+        return sortedSubjects;
     }
 
     public static void defineClassesToAllocate(
@@ -191,7 +250,6 @@ public class TCC {
             int qtyClasses
     ){
         String day = findBestDayToAllocate(daysAvailableClasses, qtyClasses, subject.getPeriod());
-
         if(Objects.isNull(day)){
             day = Integer.toString(subject.getPeriod()) + "-Segunda-Feira";
         }
@@ -199,6 +257,7 @@ public class TCC {
         int qtyMissingClassesToAllocate = qtyClasses;
         int allocatedClasses = -1;
         int availableClasses = daysAvailableClasses.get(day);
+        int allocatedForTheDay = 0;
 
         while(qtyMissingClassesToAllocate > 0){
             //Os horários podem ser alocados em sequência no determinado dia sem problemas
@@ -216,13 +275,30 @@ public class TCC {
                 return;
             }
 
-            while(qtyClasses != 0) {
+
+
+            while(qtyMissingClassesToAllocate != 0) {
                 //Quantidade de horários para ser alocados é menor que a quantidade disponível no dia
                 //Dividir a quantidade por 2 até ser possível alocar a matéria em mais de 1 dia
-                qtyClasses = (qtyMissingClassesToAllocate / 2) + qtyMissingClassesToAllocate % 2;
+                if(allocatedForTheDay == 0){
+                    qtyClasses = (qtyClasses / 2) + qtyClasses % 2;
+                }
+
+                if(qtyClasses == 0){
+                    qtyClasses = qtyMissingClassesToAllocate;
+                }
+
+                if(allocatedForTheDay == 1){
+                    qtyClasses = qtyMissingClassesToAllocate;
+                }
 
                 if(allocatedClasses != 0){
                     day = findBestDayToAllocate(daysAvailableClasses, qtyClasses, subject.getPeriod());
+                }
+
+                if(Objects.isNull(day)){
+                    allocatedForTheDay = 0;
+                    continue;
                 }
 
                 if(!Objects.isNull(day)){
@@ -264,6 +340,14 @@ public class TCC {
                     } else {
                         qtyMissingClassesToAllocate = qtyMissingClassesToAllocate - allocatedClasses;
                         daysAvailableClasses.put(day, daysAvailableClasses.get(day) - allocatedClasses);
+
+                        if(allocatedForTheDay == 1){
+                            qtyClasses = 0;
+                            allocatedForTheDay = 0;
+                        } else {
+                            allocatedForTheDay = 1;
+                        }
+
                     }
                 }
             }
@@ -311,20 +395,38 @@ public class TCC {
     }
 
 
-    public static String retrieveClasstimeFromAvailableClasses(int option, String shift){
-        switch (option) {
-            case 1:
-                return shift.equals("MATUTINO") ? "11:25" : "22:05";
-            case 2:
-                return shift.equals("MATUTINO") ? "10:35" : "21:15";
-            case 3:
-                return shift.equals("MATUTINO") ? "09:45" : "20:25";
-            case 4:
-                return shift.equals("MATUTINO") ? "08:40" : "19:20";
-            case 5:
-                return shift.equals("MATUTINO") ? "07:50" : "18:30";
-            case 6:
-                return "07:00";
+    public static String retrieveClasstimeFromAvailableClasses(int option, String shift, String day){
+
+        if(day.equals("Sábado")){
+            switch (option) {
+                case 1:
+                    return "11:25";
+                case 2:
+                    return "10:35";
+                case 3:
+                    return "09:45";
+                case 4:
+                    return "08:40";
+                case 5:
+                    return "07:50";
+                case 6:
+                    return "07:00";
+            }
+        } else {
+            switch (option) {
+                case 1:
+                    return shift.equals("MATUTINO") ? "11:25" : "22:05";
+                case 2:
+                    return shift.equals("MATUTINO") ? "10:35" : "21:15";
+                case 3:
+                    return shift.equals("MATUTINO") ? "09:45" : "20:25";
+                case 4:
+                    return shift.equals("MATUTINO") ? "08:40" : "19:20";
+                case 5:
+                    return shift.equals("MATUTINO") ? "07:50" : "18:30";
+                case 6:
+                    return "07:00";
+            }
         }
 
         return "";
@@ -347,6 +449,72 @@ public class TCC {
         }
 
         return "";
+    }
+
+    public static HashMap<String, Professor> rankProfessors(AtomicReference<HashMap<String, Professor>> professorHashMap){
+        int maxQtyClasses = 0;
+        for(String s : professorHashMap.get().keySet()){
+
+            //Professores que nao marcaram nenhuma disposicao sao os ultimos a serem alocados
+            if(professorHashMap.get().get(s).getQtyPreferableTimes() == 0){
+                professorHashMap.get().get(s).setPrioritizationLevel(101);
+                continue;
+            }
+
+            if(s.contains("NOTURNO")){
+                maxQtyClasses = 30;
+            } else {
+                maxQtyClasses = 36;
+            }
+
+            //Professores que marcaram todas os dias da semana serao os ultimos a serem alocados
+            if(professorHashMap.get().get(s).getQtyPreferableTimes() >= maxQtyClasses){
+                professorHashMap.get().get(s).setPrioritizationLevel(100);
+                continue;
+            }
+
+            //Professores marcaram a quantidade minima de aula e sao priorizados corretamente
+            if(professorHashMap.get().get(s).getQtyPreferableTimes() >= professorHashMap.get().get(s).getQtyClasses()){
+                professorHashMap.get().get(s).setPrioritizationLevel(
+                        professorHashMap.get().get(s).getQtyPreferableTimes() - professorHashMap.get().get(s).getQtyClasses());
+                continue;
+            }
+
+            //Professores marcaram menos do que quantidade minima de aula
+            if(professorHashMap.get().get(s).getQtyPreferableTimes() >= professorHashMap.get().get(s).getQtyClasses()){
+                professorHashMap.get().get(s).setPrioritizationLevel(
+                        100 - professorHashMap.get().get(s).getQtyPreferableTimes());
+
+            }
+
+        }
+
+        for(String s : professorHashMap.get().keySet()){
+
+            //Professores que lecionam em outras instituicoes além da UEMG
+            if(!professorHashMap.get().get(s).isOnlyUEMGProfessor()){
+                professorHashMap.get().get(s).setPrioritizationByEducation(0);
+                continue;
+            }
+
+            //Professores que lecionam em outros cursos da UEMG
+            if(!professorHashMap.get().get(s).isExclusiveToComputerEngineering()){
+                professorHashMap.get().get(s).setPrioritizationByEducation(1);
+                continue;
+            }
+
+            //Professores possuem apenas 1 cargo e sao exclusivos da UEMG
+            if(professorHashMap.get().get(s).isOnlyUEMGProfessor() && professorHashMap.get().get(s).getQtyClasses() <= 30){
+                professorHashMap.get().get(s).setPrioritizationByEducation(2);
+                continue;
+            }
+
+            //Professores possuem mais de 1 cargo e sao exclusivos da UEMG
+            if(professorHashMap.get().get(s).isOnlyUEMGProfessor() && professorHashMap.get().get(s).getQtyClasses() > 30){
+                professorHashMap.get().get(s).setPrioritizationByEducation(3);
+            }
+        }
+        return professorHashMap.get();
     }
 
 }

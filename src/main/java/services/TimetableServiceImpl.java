@@ -112,9 +112,12 @@ public class TimetableServiceImpl implements TimetableService {
                 professorId++;
             }
             if( !row.getCell(14).getStringCellValue().contains("Estágio")
-                && !row.getCell(14).getStringCellValue().contains("Optativa")
                     && !row.getCell(13).getStringCellValue().isBlank()
             ) {
+                if(row.getCell(14).getStringCellValue().contains("Optativa III")
+                && row.getCell(1).getStringCellValue().contains("Erasmo")) {
+                    continue;
+                }
                 int period = Integer.parseInt(row.getCell(13).getStringCellValue().split("º")[0].trim());
                 boolean isSubjectThisSemester = Objects.isNull(((HashMap<String, String>)periodPrioritization.get("MATUTINO")).get(row.getCell(13).getStringCellValue().replace("º", "").trim()));
                 if (!isSubjectThisSemester) {
@@ -159,6 +162,10 @@ public class TimetableServiceImpl implements TimetableService {
                         String subjectName = row.getCell(14).getStringCellValue().replace("I-", "I").replace("- (", "I").split("\\(")[0].trim();
                         if(row.getCell(14).getStringCellValue().replace("I-", "I").replace("- (", "I").split("\\(")[0].trim().contains("Metodologia Cientifica para Computação")){
                             subjectName = "Metodologia Cientifica para Computação";
+                        }
+
+                        if(subjectName.contains("Optativa")){
+                            subjectName = subjectName.split("-")[0].trim();
                         }
 
                         subject = Subject
@@ -275,7 +282,7 @@ public class TimetableServiceImpl implements TimetableService {
     }
 
     @Override
-    public void exportGeneratedTimetable(List<Timetable> generatedTimetables) throws IOException {
+    public void exportGeneratedTimetable(List<Timetable> generatedTimetables, Shift shift) throws IOException {
         FileInputStream templateFile = new FileInputStream("src/main/java/generated/timetables/horarios_template.xlsx");
         Workbook workbook = WorkbookFactory.create(templateFile);
         templateFile.close();
@@ -288,13 +295,13 @@ public class TimetableServiceImpl implements TimetableService {
         workbook.getSheetAt(0).getRow(1).getCell(0)
                 .setCellValue(
                         cellValue.replace("[INDICAR SEMESTRE E ANO]", "1 SEMESTRE DE 2023 ")
-                                .replace("[INDICAR TURNO]", "MATUTINO")
+                                .replace("[INDICAR TURNO]", shift.toString())
                 );
         // Create a sheet within the workbook
         Sheet sheet = workbook.getSheetAt(0);
 
         // Define the file path where the Excel file will be saved
-        String filePath = "src/main/java/generated/timetables/sample.xlsx";
+        String filePath = "src/main/java/generated/timetables/horarios_" + shift.toString() + ".xlsx";
 
         HashMap<Object, Integer> dayColumn = new HashMap<>();
         dayColumn.put("Segunda-Feira", 1);
@@ -339,12 +346,8 @@ public class TimetableServiceImpl implements TimetableService {
                 for(ClassTime c: timetable.getClasses().stream().filter(
                         classTime -> !Objects.isNull(classTime.getSubject())
                                 && classTime.getSubject().getPeriod() == finalPeriod
-                                && classTime.getSubject().getShift().equals(Shift.MATUTINO)).collect(Collectors.toList())) {
+                                && classTime.getSubject().getShift().equals(shift)).collect(Collectors.toList())) {
                     columnLine = dayColumn.get(c.getDayOfTheWeek());
-                    if (!hourRow.containsKey(hourRow.get(c.getTime()))) {
-                        int q = 0;
-                    }
-
 
                     rowLine = hourRow.get(c.getTime()) + (countPeriod * 16);
                     sheet.getRow(rowLine).getCell(columnLine).setCellValue(c.getSubject().getClassName() + "\n" +

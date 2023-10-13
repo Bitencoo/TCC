@@ -42,9 +42,7 @@ public class TimetableController {
         return timetableService.createEmptyProfessorPreferableTimetableNoturno(timetableIdIncrementor, professorIdIncrementor, professorName, shift);
     }
 
-    public void exportGeneratedTimetable(List<Timetable> timetables) throws IOException {
-        timetableService.exportGeneratedTimetable(timetables);
+    public void exportGeneratedTimetable(List<Timetable> timetables, Shift shift) throws IOException {
+        timetableService.exportGeneratedTimetable(timetables, shift);
     }
-
-
-    }
+}

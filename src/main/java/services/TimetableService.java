@@ -19,5 +19,5 @@ public interface TimetableService {
 
     Timetable createEmptyProfessorPreferableTimetableNoturno(int timetableIdIncrementor, int professorIdIncrementor, String professorName, Shift shift);
 
-    void exportGeneratedTimetable(List<Timetable> generatedTimetables) throws IOException;
+    void exportGeneratedTimetable(List<Timetable> generatedTimetables, Shift shift) throws IOException;
 }
