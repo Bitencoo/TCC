@@ -45,6 +45,16 @@ public class TCC {
                             : timetableController.createEmptyProfessorPreferableTimetableNoturno(timetable.getId(), timetable.getProfessorId(), timetable.getProfessor().getName(), timetable.getShift()));
         }
 
+        preferableTimetableList.add(
+                timetableController.createEmptyProfessorPreferableTimetableMatutino(1000, 1000, "ESTÁGIO", Shift.MATUTINO));
+        preferableTimetableList.add(
+                timetableController.createEmptyProfessorPreferableTimetableMatutino(1000, 1000, "ESTÁGIO", Shift.NOTURNO));
+
+        preferableTimetableList.stream().filter(timetable ->
+                timetable.getProfessor().getId().equals("1000")).collect(Collectors.toList())
+                .stream().forEach(professor -> {
+                    professor.getProfessor().setId("ESTAGIO");
+                });
         subjectList.stream().forEach(
                 subject ->
                 {
@@ -107,6 +117,9 @@ public class TCC {
         // i = 0 TURNO MATUTINO
         // i = 1 TURNO NOTURNO
         List<Subject> currentSubjectList = new ArrayList<>();
+        List<Subject> internshipsubjectList = subjectList.stream().filter(
+                subject -> subject.getClassName().contains("Estágio")).collect(Collectors.toList());
+        subjectList = subjectList.stream().filter(subject -> !subject.getClassName().contains("Estágio")).collect(Collectors.toList());
         Timetable  currentTimetableList = new Timetable();
         String day = "Segunda-Feira";
         List<ClassTime> allocatedClasses = new ArrayList<>();
@@ -136,7 +149,32 @@ public class TCC {
                     classTimeListToAllocate.clear();
                 }
             }
-        }
+
+            for (String s : ((HashMap<String, String>) periodMap.get(shifts.get(st).toString())).keySet().stream().collect(Collectors.toList())) {
+                HashMap<String, Shift> finalShifts = shifts;
+                currentSubjectList = internshipsubjectList.stream().filter(sub -> sub.getPeriod() == Integer.parseInt(s) && sub.getShift().equals(finalShifts.get(st))).collect(Collectors.toList());
+                List<ClassTime> classTimeListToAllocate = new ArrayList<>();
+
+                for (Subject subject : currentSubjectList) {
+                    HashMap<String, Shift> finalShifts1 = shifts;
+                    currentTimetableList = preferableTimetable.stream().filter(
+                            timetable -> !Objects.isNull(timetable.getProfessor())
+                                    && timetable.getShift().equals(finalShifts1.get(st))
+                                    && timetable.getProfessor().getId().equals(subject.getProfessor().getId())).collect(Collectors.toList()).get(0);
+                defineClassesToAllocate(
+                            daysAvailableClasses,
+                            classTimeListToAllocate,
+                            currentTimetableList,
+                            preferableTimetable,
+                            subject,
+                            subject.getNumbersOfLessons()
+                    );
+                    allocatedClasses.addAll(classTimeListToAllocate);
+                    classTimeListToAllocate.clear();
+                }
+            }
+
+            }
         return allocatedClasses;
     }
 

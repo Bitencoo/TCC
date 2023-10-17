@@ -102,6 +102,7 @@ public class TimetableServiceImpl implements TimetableService {
         Iterator<Row> rowIterator = mySheet.iterator();
 
         List<Subject> subjectList = new ArrayList<>();
+        HashMap<String, Subject> internshipSubjectHashMap = new HashMap<>();
         int professorId = 0;
         Subject subject = null;
         HashMap<String, Professor> professorsMap = new HashMap<>();
@@ -184,6 +185,44 @@ public class TimetableServiceImpl implements TimetableService {
                                 .build();
                     }
                 }
+            } else {
+                if(row.getCell(14).getStringCellValue().contains("Estágio")
+                        && !row.getCell(13).getStringCellValue().isBlank()
+                        && row.getCell(10).getStringCellValue().contains("Computação")) {
+                    //Serve só pra adicionar as matérias de estágio, elas são especiais e são alocadas de qualquer jeito.
+                    String shiftString = row.getCell(12).getStringCellValue().contains("Not")
+                            ? Shift.NOTURNO.toString() : Shift.MATUTINO.toString();
+                    String s = row.getCell(14).getStringCellValue()
+                            .replace("_", "")
+                            .replace("-", "")
+                            .split("\\(")[0].trim()
+                            + "_" + shiftString;
+                    if (!internshipSubjectHashMap.containsKey(s)) {
+                        Subject newSubject = Subject.builder()
+                                .prioritization(5)
+                                .className(row.getCell(14).getStringCellValue().replace("_", "").split("\\(")[0].trim())
+                                .numbersOfLessons((int) (row.getCell(16).getNumericCellValue() + row.getCell(17).getNumericCellValue()))
+                                .period(Integer.parseInt(row.getCell(13).getStringCellValue().split("º")[0].trim()))
+                                .shift(row.getCell(12).getStringCellValue().contains("Not") ? Shift.NOTURNO : Shift.MATUTINO)
+                                .professor(
+                                        Professor.builder()
+                                                .id("ESTAGIO")
+                                                .qtyClasses(-1)
+                                                .prioritizationLevel(105)
+                                                .name(row.getCell(1).getStringCellValue().replace(" ", "").toUpperCase() + "_")
+                                                .build()
+                                )
+                                .build();
+
+                        internshipSubjectHashMap.putIfAbsent(s, newSubject);
+                    } else {
+                        internshipSubjectHashMap.get(s)
+                                .getProfessor()
+                                .setName(internshipSubjectHashMap.get(s)
+                                        .getProfessor().getName() +
+                                        row.getCell(1).getStringCellValue().replace(" ", "").toUpperCase() + "_");
+                    }
+                }
             }
             if(subject != null){
                 subjectList.add(subject);
@@ -198,6 +237,10 @@ public class TimetableServiceImpl implements TimetableService {
         subjectList.stream().forEach(subject1 -> {
             subject1.getProfessor().setQtyClasses(professorsMap.get(subject1.getProfessor().getId()).getQtyClasses());
         });
+
+        for(String st: internshipSubjectHashMap.keySet()){
+            subjectList.add(internshipSubjectHashMap.get(st));
+        }
         return subjectList;
     }
 
@@ -283,7 +326,10 @@ public class TimetableServiceImpl implements TimetableService {
 
     @Override
     public void exportGeneratedTimetable(List<Timetable> generatedTimetables, Shift shift) throws IOException {
-        FileInputStream templateFile = new FileInputStream("src/main/java/generated/timetables/horarios_template.xlsx");
+        FileInputStream templateFile = new FileInputStream(
+                shift.equals(Shift.MATUTINO)
+                        ? "src/main/java/generated/timetables/horarios_template_matutino.xlsx"
+                        : "src/main/java/generated/timetables/horarios_template_noturno.xlsx");
         Workbook workbook = WorkbookFactory.create(templateFile);
         templateFile.close();
 
@@ -330,6 +376,14 @@ public class TimetableServiceImpl implements TimetableService {
         periods.put("5", "5º");
         periods.put("7", "7º");
         periods.put("9", "9º");
+
+        HashMap<Object, Integer> periodsPoints = new HashMap<>();
+        periodsPoints.put("1", 15);
+        periodsPoints.put("3", 31);
+        periodsPoints.put("5", 47);
+        periodsPoints.put("7", 63);
+        periodsPoints.put("9", 79);
+
         int period = 0;
         int rowLine = 4;
         int columnLine = 0;
@@ -343,6 +397,13 @@ public class TimetableServiceImpl implements TimetableService {
         for(Timetable timetable: generatedTimetables){
             for(period = 1; period <= 9; period = period + 2){
                 int finalPeriod = period;
+                sheet.getRow(1 + (countPeriod * 16)).getCell(0)
+                        .setCellValue(
+                                cellValue.replace("[INDICAR SEMESTRE E ANO]", "1 SEMESTRE DE 2023 ")
+                                        .replace("[INDICAR TURNO]", shift.toString())
+                        );
+                sheet.getRow(4 + (countPeriod * 16)).getCell(0)
+                        .setCellValue(periods.get(Integer.toString(period)) + " PERÍODO" + " [INDIQUE A SALA AQUI]");
                 for(ClassTime c: timetable.getClasses().stream().filter(
                         classTime -> !Objects.isNull(classTime.getSubject())
                                 && classTime.getSubject().getPeriod() == finalPeriod
@@ -358,7 +419,15 @@ public class TimetableServiceImpl implements TimetableService {
                     sheet.autoSizeColumn(columnLine);
                 }
                 countPeriod++;
+                sheet.getRow(periodsPoints.get(Integer.toString(period))).getCell(0).setCellValue("PONTUAÇÃO");
+                sheet.getRow(periodsPoints.get(Integer.toString(period))).getCell(1).setCellValue(timetable.getPoints());
+
+                // Auto-adjust the row height
+                sheet.getRow(periodsPoints.get(Integer.toString(period))).setHeight((short)-1);
+                // Autosize the column width
+                sheet.autoSizeColumn(0);
             }
+
             countPeriod = 0;
         }
 
