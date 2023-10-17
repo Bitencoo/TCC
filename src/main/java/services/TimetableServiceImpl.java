@@ -10,6 +10,7 @@ import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.*;
+import java.sql.Time;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -377,19 +378,27 @@ public class TimetableServiceImpl implements TimetableService {
         periods.put("7", "7º");
         periods.put("9", "9º");
 
-        HashMap<Object, Integer> periodsPoints = new HashMap<>();
-        periodsPoints.put("1", 15);
-        periodsPoints.put("3", 31);
-        periodsPoints.put("5", 47);
-        periodsPoints.put("7", 63);
-        periodsPoints.put("9", 79);
+        HashMap<Object, Integer> periodsPointsPosition = new HashMap<>();
+        periodsPointsPosition.put("1", 15);
+        periodsPointsPosition.put("3", 31);
+        periodsPointsPosition.put("5", 47);
+        periodsPointsPosition.put("7", 63);
+        periodsPointsPosition.put("9", 79);
+
+        HashMap<String, Integer> periodsPoints = new HashMap<>();
+        periodsPoints.put("1", 0);
+        periodsPoints.put("3", 0);
+        periodsPoints.put("5", 0);
+        periodsPoints.put("7", 0);
+        periodsPoints.put("9", 0);
+
+        countPoints(periodsPoints, generatedTimetables, shift);
 
         int period = 0;
         int rowLine = 4;
         int columnLine = 0;
         int countPeriod = 0;
         Row row = sheet.getRow(rowLine);
-
         row.getCell(columnLine).setCellValue(periods.get(Integer.toString(period) + " " + row.getCell(columnLine).getStringCellValue()));
 
         rowLine = 6;
@@ -419,11 +428,11 @@ public class TimetableServiceImpl implements TimetableService {
                     sheet.autoSizeColumn(columnLine);
                 }
                 countPeriod++;
-                sheet.getRow(periodsPoints.get(Integer.toString(period))).getCell(0).setCellValue("PONTUAÇÃO");
-                sheet.getRow(periodsPoints.get(Integer.toString(period))).getCell(1).setCellValue(timetable.getPoints());
+                sheet.getRow(periodsPointsPosition.get(Integer.toString(period))).getCell(0).setCellValue("PONTUAÇÃO");
+                sheet.getRow(periodsPointsPosition.get(Integer.toString(period))).getCell(1).setCellValue(periodsPoints.get(Integer.toString(period)));
 
                 // Auto-adjust the row height
-                sheet.getRow(periodsPoints.get(Integer.toString(period))).setHeight((short)-1);
+                sheet.getRow(periodsPointsPosition.get(Integer.toString(period))).setHeight((short)-1);
                 // Autosize the column width
                 sheet.autoSizeColumn(0);
             }
@@ -578,4 +587,22 @@ public class TimetableServiceImpl implements TimetableService {
         return currentTimetable;
     }
 
+    private void countPoints(HashMap<String, Integer> periodPoints, List<Timetable> generatedClasses, Shift shift){
+        int points = 0;
+        for(String s : periodPoints.keySet()){
+            for(Timetable timetable : generatedClasses){
+                Shift finalShift = shift;
+                for(ClassTime c: timetable.getClasses().stream().filter(
+                        classTime -> !Objects.isNull(classTime.getSubject())
+                                && classTime.getSubject().getPeriod() == Integer.parseInt(s)
+                                && classTime.getSubject().getShift().equals(finalShift)).collect(Collectors.toList())) {
+                    if (c.isPreferable()){
+                        points++;
+                    }
+                }
+            }
+            periodPoints.put(s, points);
+            points = 0;
+        }
+    }
 }
