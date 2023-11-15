@@ -1,5 +1,6 @@
 package controllers;
 
+import entities.ProfessorExclusivity;
 import services.PrioritizationServiceImpl;
 
 import java.io.IOException;
@@ -18,5 +19,9 @@ public class PrioritizationController {
 
     public Map<Object, Object> readSubjectsPrioritization(String xlsxPath) throws IOException {
         return prioritizationService.readSubjectsPrioritization(xlsxPath);
+    }
+
+    public Map<String, ProfessorExclusivity> readProfessorsExclusivity(String xlsxPath) throws IOException {
+        return prioritizationService.readProfessorsExclusivity(xlsxPath);
     }
 }

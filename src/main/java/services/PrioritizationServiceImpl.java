@@ -1,5 +1,6 @@
 package services;
 
+import entities.ProfessorExclusivity;
 import entities.Subject;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
@@ -73,5 +74,29 @@ public class PrioritizationServiceImpl implements PrioritizationService {
         }
 
         return subjectPrioritizationMap;
+    }
+
+    @Override
+    public HashMap<String, ProfessorExclusivity> readProfessorsExclusivity(String xlsxPath) throws IOException {
+        File myFile = new File(xlsxPath);
+        FileInputStream fis = new FileInputStream(myFile);
+
+        XSSFWorkbook myWorkBook = new XSSFWorkbook(fis);
+
+        XSSFSheet mySheet = myWorkBook.getSheetAt(0);
+
+        HashMap<String, ProfessorExclusivity> professorsExclusivity = new HashMap<>();
+        for(int i = 4; i < mySheet.getLastRowNum(); i++){
+            Row row = mySheet.getRow(i);
+            ProfessorExclusivity professorExclusivity = new ProfessorExclusivity();
+            professorExclusivity.setOnlyUemgProfessor(row.getCell(2).getStringCellValue().trim().equals("X") ? true : false);
+            professorExclusivity.setExclusiveComputerEngineering(row.getCell(3).getStringCellValue().trim().equals("X") ? true : false);
+            professorsExclusivity.put(
+                    row.getCell(1).getStringCellValue().trim(),
+                    professorExclusivity
+            );
+        }
+
+        return professorsExclusivity;
     }
 }

@@ -19,6 +19,7 @@ public class Professor {
     private int qtyClasses = 0;
     private int qtyPreferableTimes = 0;
     private boolean isExclusiveToComputerEngineering = false;
-    private boolean onlyUEMGProfessor = false;
+    private boolean onlyOneCharge = true;
+    private boolean onlyUEMGProfessor = true;
 
 }

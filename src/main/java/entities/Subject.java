@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class Subject {
     private String className = "A definir";
+    private int id;
     private int numbersOfLessons = 0;
     private int period = 0;
     private int prioritization = -1;
