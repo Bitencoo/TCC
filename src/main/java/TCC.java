@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 
 public class TCC {
+    public static int change = 0;
     public static void main(String[] args) throws IOException {
         TimetableController timetableController = new TimetableController(new TimetableServiceImpl());
         PrioritizationController prioritizationController = new PrioritizationController(new PrioritizationServiceImpl());
@@ -239,13 +240,171 @@ public class TCC {
         int allocatedClasses = qtyClassesToAllocate;
         String currentTime = "";
         List<Integer> daysToAllocate = new ArrayList<>();
+        int changeDay = 1;
+        int maxTimes = subject.getShift().equals(Shift.MATUTINO) ? 6 : 5;
+        if(day.equals("Sábado")) {
+            maxTimes = 6;
+        }
+        int counter = 0;
+        int maxCounter = 0;
+        for(int i = 0; i <= 6; i++){
+            if(change == 6){
+                change = 0;
+                return -1;
+            }
+            counter = 0;
+            maxTimes = subject.getShift().equals(Shift.MATUTINO) ? 6 : 5;
+            if(day.equals("Sábado")) {
+                maxTimes = 6;
+            }
+            String finalDay = day;
+            for(ClassTime c : currentTimetable.getClasses().stream()
+                    .filter(classTime -> classTime.getDayOfTheWeek().equals(finalDay)).collect(Collectors.toList())) {
+                if(!Objects.isNull(c.getSubject())){
+                    counter++;
+                }
+            }
+
+            if(maxTimes < counter + qtyClassesToAllocate) {
+                day = retrieveNextDay(day);
+                change = change + 1;
+            } else {
+                String finalDay2 = finalDay;
+                currentClassTimeLength = maxTimes;
+                for(Timetable t:
+                preferableTimetable.stream().filter(timetable ->
+                        timetable.getShift().equals(subject.getShift())
+                                && timetable.getClasses().stream().anyMatch(
+                                classTime ->
+                                        classTime.getDayOfTheWeek().equals(finalDay2)
+                                                && !Objects.isNull(classTime.getSubject())
+                                                && classTime.getSubject().getPeriod() == subject.getPeriod()
+                        )
+                ).collect(Collectors.toList())) {
+                   currentClassTimeLength = currentClassTimeLength - t.getClasses().stream().filter(
+                           classTime ->
+                                   classTime.getDayOfTheWeek().equals(finalDay2)
+                                           && !Objects.isNull(classTime.getSubject())
+                                           && classTime.getSubject().getPeriod() == subject.getPeriod()
+                   ).collect(Collectors.toList()).size();
+                }
+
+                if(currentClassTimeLength < qtyClassesToAllocate){
+                    day = retrieveNextDay(day);
+                    change = change + 1;
+                } else {
+                    String time = retrieveClasstimeFromAvailableClasses(currentClassTimeLength - counter, subject.getShift().toString(), day);
+                    if(!time.equals("")){
+                        break;
+                    }
+                    day = retrieveNextDay(day);
+                    change = change + 1;
+                }
+            }
+        }
 
         while (allocatedClasses != 0) {
-            currentTime = retrieveClasstimeFromAvailableClasses(currentClassTimeLength, subject.getShift().toString(), day);
+            String finalDayInside = day;
 
+            if(subject.getClassName().contains("Controle") && subject.getShift().equals(Shift.NOTURNO) && day.equals("Sexta-Feira")){
+                int i = allocatedClasses + 3;
+                currentTime = retrieveClasstimeFromAvailableClasses(i, subject.getShift().toString(), day);
+            } else {
+                currentTime = retrieveClasstimeFromAvailableClasses(currentClassTimeLength - counter, subject.getShift().toString(), day);
+            }
+            if(currentTime.equals("")){
+                day = retrieveNextDay(day);
+                String finalDayInside2 = day;
+                counter = 0;
+                for(ClassTime c : currentTimetable.getClasses().stream()
+                        .filter(classTime -> classTime.getDayOfTheWeek().equals(finalDayInside2)).collect(Collectors.toList())) {
+                    if(!Objects.isNull(c.getSubject())){
+                        counter++;
+                    }
+                }
+                continue;
+            }
             // Verifica se não foi alocada nenhuma aula e se o dia atual corresponde ao do horário
             String finalCurrentTime = currentTime;
+
+            // 0 indica que ainda não foi alocado horário para o professor
+            int validateProfessorFree = preferableTimetable.stream().filter(timetable ->
+                    timetable.getProfessor().getId().equals(subject.getProfessor().getId())
+                            && timetable.getShift().equals(subject.getShift())
+                            && timetable.getClasses().stream().anyMatch(
+                            classTime ->
+                                    classTime.getDayOfTheWeek().equals(finalDayInside)
+                                            && classTime.getTime().equals(finalCurrentTime)
+                                            && !Objects.isNull(classTime.getSubject())
+                    )
+            ).collect(Collectors.toList()).size();
+
+            int validateTimetableFree = preferableTimetable.stream().filter(timetable ->
+                    timetable.getShift().equals(subject.getShift()) &&
+                            timetable.getClasses().stream().anyMatch(
+                                    classTime ->
+                                            classTime.getDayOfTheWeek().equals(finalDayInside)
+                                                    && classTime.getTime().equals(finalCurrentTime)
+                                                    && !Objects.isNull(classTime.getSubject())
+                                                    && classTime.getSubject().getPeriod() == subject.getPeriod()
+                            )
+            ).collect(Collectors.toList()).size();
+
+            if (validateProfessorFree == 0 && validateTimetableFree == 0) {
+                currentClassTimeLength--;
+                allocatedClasses--;
+                ClassTime cTime = currentTimetable.getClasses().stream().filter(classTime ->
+                        classTime.getTime().equals(finalCurrentTime)
+                                && classTime.getDayOfTheWeek().equals(finalDayInside)
+                ).collect(Collectors.toList()).get(0);
+                cTime.setSubject(subject);
+                if (cTime.isPreferable()) {
+                    currentTimetable.setPoints(currentTimetable.getPoints() + 1);
+                }
+                classTimeListToAllocate.add(cTime);
+            } else {
+                day = retrieveNextDay(day);
+                change = change + 1;
+                for(ClassTime c : currentTimetable.getClasses().stream()
+                        .filter(classTime -> classTime.getDayOfTheWeek().equals(finalDayInside)).collect(Collectors.toList())) {
+                    if(!Objects.isNull(c.getSubject())){
+                        counter++;
+                    }
+                }
+            }
+        }
+        return qtyClassesToAllocate - allocatedClasses;
+    }
+
+    public static int allocateMissingClasses(
+            List<ClassTime> classTimeListToAllocate,
+            Timetable currentTimetable,
+            List<Timetable> preferableTimetable,
+            Subject subject,
+            int qtyClassesToAllocate,
+            int currentClassTimeLength,
+            String day) {
+        int allocatedClasses = qtyClassesToAllocate;
+        String currentTime = "";
+        List<Integer> daysToAllocate = new ArrayList<>();
+        int changeDay = 1;
+        int maxTimes = subject.getShift().equals(Shift.MATUTINO) ? 6 : 5;
+        if(day.equals("Sábado")) {
+            maxTimes = 6;
+        }
+        int counter = 0;
+        while (allocatedClasses != 0) {
             String finalDay = day;
+            for(ClassTime c : currentTimetable.getClasses().stream()
+                    .filter(classTime -> classTime.getDayOfTheWeek().equals(finalDay)).collect(Collectors.toList())) {
+                if(!Objects.isNull(c.getSubject())){
+                    counter++;
+                }
+            }
+            currentTime = retrieveClasstimeFromAvailableClasses(currentClassTimeLength, subject.getShift().toString(), day);
+
+            String finalCurrentTime = currentTime;
+
 
             // 0 indica que ainda não foi alocado horário para o professor
             int validateProfessorFree = preferableTimetable.stream().filter(timetable ->
@@ -284,9 +443,13 @@ public class TCC {
                 classTimeListToAllocate.add(cTime);
             } else {
                 day = retrieveNextDay(day);
+                change = change + 1;
+
+                if(change == 6){
+
+                }
             }
         }
-
         return qtyClassesToAllocate - allocatedClasses;
     }
 
@@ -359,8 +522,22 @@ public class TCC {
                         qtyClasses,
                         availableClasses,
                         day.split(Integer.toString(subject.getPeriod()) + "-")[1]);
-                daysAvailableClasses.put(day, daysAvailableClasses.get(day) - allocatedClasses);
-                return;
+
+                if(allocatedClasses != -1){
+                    String updatedDay = "";
+                    if(day.contains("Sábado")) {
+                        updatedDay = day.split("-")[1];
+                    } else {
+                        updatedDay = day.split("-")[1] + "-" + day.split("-")[2];
+                    }
+                    for(int i = 0; i < change; i++){
+                        updatedDay = retrieveNextDay(updatedDay);
+                    }
+                    change = 0;
+                    day = day.split("-")[0] + "-" + updatedDay;
+                    daysAvailableClasses.put(day, daysAvailableClasses.get(day) - allocatedClasses);
+                    return;
+                }
             }
 
             while (qtyMissingClassesToAllocate != 0) {
@@ -425,6 +602,17 @@ public class TCC {
                         day = findBestDayToAllocate(daysAvailableClasses, qtyClasses, day, subject.getPeriod(), currentTimetableList);
                     } else {
                         qtyMissingClassesToAllocate = qtyMissingClassesToAllocate - allocatedClasses;
+                        String updatedDay = "";
+                        if(day.contains("Sábado")) {
+                            updatedDay = day.split("-")[1];
+                        } else {
+                            updatedDay = day.split("-")[1] + "-" + day.split("-")[2];
+                        }
+                        for(int i = 0; i < change; i++){
+                            updatedDay = retrieveNextDay(updatedDay);
+                        }
+                        day = day.split("-")[0] + "-" + updatedDay;
+                        change = 0;
                         daysAvailableClasses.put(day, daysAvailableClasses.get(day) - allocatedClasses);
 
                         if (allocatedForTheDay == 1) {
@@ -465,7 +653,7 @@ public class TCC {
                     && o.toString().split("-")[0].equals(Integer.toString(period))
                     && currentTimetable.getClasses().stream().filter(classTime ->
                         classTime.getDayOfTheWeek().split("-")[0].equals(o.toString().split("-")[1])
-                        && !Objects.isNull(classTime.getSubject())).collect(Collectors.toList()).size() < daysAvailableClasses.get(o)) {
+                        && !Objects.isNull(classTime.getSubject())).collect(Collectors.toList()).size() <= daysAvailableClasses.get(o)) {
                 return o.toString();
             }
         }

@@ -177,6 +177,10 @@ public class TimetableServiceImpl implements TimetableService {
                             subjectName = subjectName.split("-")[0].trim();
                         }
 
+//                        if(subjectName.contains("Optativa IV")){
+//                            subjectName = "Optativa IV";
+//                        }
+
                         subject = Subject
                                 .builder()
                                 .id(subjectId)
