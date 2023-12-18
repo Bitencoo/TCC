@@ -30,7 +30,7 @@ public class TCC {
 
         subjectsPrioritizationMap = (HashMap<Object, Object>) prioritizationController.readSubjectsPrioritization("src/main/resources/priorizacao_materias.xlsx");
         //Recuperando Matérias e priorizando cada uma
-        List<Subject> subjectList = timetableController.readQDA("src/main/resources/QDA 11 05 2023.xlsx", periodMap, professors, subjectsPrioritizationMap);
+        List<Subject> subjectList = timetableController.readQDA("src/main/resources/QDA.xlsx", periodMap, professors, subjectsPrioritizationMap);
         //Recupernado Horários Preferidos dos Professores
         List<Timetable> preferableTimetableList = timetableController.readTimetableXLSX("src/main/resources/disponibilidade_docentes_2_2023.xlsx", professors);
 
